@@ -28,18 +28,20 @@ export function useScrollVideo({
     if (!container || !video || !pinTarget) return;
 
     video.muted = true;
+    video.playsInline = true;
     video.pause();
 
-    // Set initial frame to 2.0s immediately on load so background is bright and illuminated
     const setInitialFrame = () => {
       try {
         video.currentTime = VIDEO_SEEK_START;
       } catch {}
+      ScrollTrigger.refresh();
     };
 
-    if (video.readyState >= 2) {
+    if (video.readyState >= 1) {
       setInitialFrame();
     } else {
+      video.addEventListener("loadedmetadata", setInitialFrame, { once: true });
       video.addEventListener("loadeddata", setInitialFrame, { once: true });
     }
 
@@ -82,7 +84,7 @@ export function useScrollVideo({
       pin: pinTarget,
       start: "top top",
       end: "bottom bottom",
-      scrub: 0.5,
+      scrub: true,
       anticipatePin: 1,
       onUpdate: (self) => {
         const maxDuration =
@@ -94,9 +96,15 @@ export function useScrollVideo({
       },
     });
 
+    // Refresh ScrollTrigger after mount to ensure correct height calculations on Vercel
+    const refreshTimer = setTimeout(() => {
+      ScrollTrigger.refresh();
+    }, 500);
+
     animationFrameId = requestAnimationFrame(updateVideoSeek);
 
     return () => {
+      clearTimeout(refreshTimer);
       trigger.kill();
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };

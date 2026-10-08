@@ -18,7 +18,9 @@ export const CinematicVideo = forwardRef<HTMLVideoElement, CinematicVideoProps>(
           poster={poster}
           muted
           playsInline
-          preload="metadata"
+          // @ts-ignore
+          webkit-playsinline="true"
+          preload="auto"
           className="w-full h-full object-cover object-center pointer-events-none select-none"
         />
       </div>
