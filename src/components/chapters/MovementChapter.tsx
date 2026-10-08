@@ -20,6 +20,7 @@ export function MovementChapter({ opacity }: MovementChapterProps) {
             src="/images/editorial-mermaid.png"
             alt="Editorial Underwater Mermaid Art"
             fill
+            sizes="80px"
             className="object-cover"
           />
         </div>

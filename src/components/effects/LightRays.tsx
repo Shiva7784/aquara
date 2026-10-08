@@ -11,6 +11,7 @@ export function LightRays() {
           src="/images/caustics-bg.png"
           alt="Bioluminescent Caustics Texture"
           fill
+          sizes="100vw"
           className="object-cover"
         />
       </div>
