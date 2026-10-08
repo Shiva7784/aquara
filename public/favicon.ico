@@ -1,0 +1,22 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="32" cy="32" r="32" fill="#02070B"/>
+  <circle cx="32" cy="32" r="28" fill="url(#ocean_bg)"/>
+  <path d="M32 10C32 10 16 28 16 38C16 46.8366 23.1634 54 32 54C40.8366 54 48 46.8366 48 38C48 28 32 10 32 10Z" fill="url(#drop_grad)"/>
+  <path d="M32 16C32 16 21 31 21 38C21 44 26 49 32 49C38 49 43 44 43 38C43 31 32 16 32 16Z" fill="url(#inner_glow)" opacity="0.7"/>
+  <circle cx="26" cy="32" r="3" fill="#FFFFFF" opacity="0.85"/>
+  <defs>
+    <radialGradient id="ocean_bg" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(32 32) rotate(90) scale(28)">
+      <stop stop-color="#0E2A38"/>
+      <stop offset="1" stop-color="#02070B"/>
+    </radialGradient>
+    <linearGradient id="drop_grad" x1="32" y1="10" x2="32" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00F2FE"/>
+      <stop offset="0.5" stop-color="#4FACFE"/>
+      <stop offset="1" stop-color="#D94B73"/>
+    </linearGradient>
+    <linearGradient id="inner_glow" x1="32" y1="16" x2="32" y2="49" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#70E0D6" stop-opacity="0.2"/>
+    </linearGradient>
+  </defs>
+</svg>

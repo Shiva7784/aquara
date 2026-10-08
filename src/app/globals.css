@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #02070b;
+    --deep-ocean: #031b2a;
+    --ocean-blue: #075b82;
+    --water-highlight: #36c7e8;
+    --primary-text: #f5f7f8;
+    --accent-red: #d94b73;
+  }
+
+  html {
+    background-color: var(--bg-main);
+    color: var(--primary-text);
+    scroll-behavior: smooth;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--primary-text);
+    font-family: var(--font-body), sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--accent-red);
+    color: #ffffff;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #02070b;
+}
+::-webkit-scrollbar-thumb {
+  background: #075b82;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #36c7e8;
+}
+
+@keyframes pulseSlow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+
+.animate-pulse-slow {
+  animation: pulseSlow 8s ease-in-out infinite;
+}
