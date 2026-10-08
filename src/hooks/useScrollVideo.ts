@@ -51,9 +51,15 @@ export function useScrollVideo({
 
     if (prefersReducedMotion) return;
 
+    const isTouchDevice =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
     let animationFrameId: number;
     let targetTime = VIDEO_SEEK_START;
     let currentTime = VIDEO_SEEK_START;
+    const lerpFactor = isTouchDevice ? 0.35 : 0.15;
+    const seekThreshold = isTouchDevice ? 0.035 : 0.005;
 
     const updateVideoSeek = () => {
       const maxDuration =
@@ -61,9 +67,9 @@ export function useScrollVideo({
       const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
 
       // Smooth lerp seek towards target scroll time
-      currentTime += (targetTime - currentTime) * 0.15;
+      currentTime += (targetTime - currentTime) * lerpFactor;
 
-      if (Math.abs(targetTime - currentTime) > 0.005) {
+      if (Math.abs(targetTime - currentTime) > seekThreshold) {
         try {
           video.currentTime = Math.max(VIDEO_SEEK_START, Math.min(currentTime, endSeek));
         } catch {}
@@ -84,7 +90,7 @@ export function useScrollVideo({
       pin: pinTarget,
       start: "top top",
       end: "bottom bottom",
-      scrub: true,
+      scrub: isTouchDevice ? 0.1 : true,
       anticipatePin: 1,
       onUpdate: (self) => {
         const maxDuration =

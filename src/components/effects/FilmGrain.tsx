@@ -1,6 +1,13 @@
 "use client";
 
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+
 export function FilmGrain() {
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
+  // Bypass heavy feTurbulence SVG filter calculation on mobile GPUs to guarantee 60-120FPS smooth scrolling
+  if (isMobile) return null;
+
   return (
     <div
       className="pointer-events-none fixed inset-0 z-30 opacity-[0.035] mix-blend-overlay"

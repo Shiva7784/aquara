@@ -12,15 +12,19 @@ export function useLenis() {
 
     if (prefersReducedMotion) return;
 
+    const isTouchDevice =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
     const lenis = new Lenis({
-      duration: 1.2,
+      duration: isTouchDevice ? 0.8 : 1.2,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       orientation: "vertical",
       gestureOrientation: "vertical",
       smoothWheel: true,
-      wheelMultiplier: 0.9,
-      touchMultiplier: 1.2,
-      lerp: 0.08,
+      wheelMultiplier: 1.0,
+      touchMultiplier: 0, // Disable artificial touch overriding so mobile touch uses native 120Hz smooth inertia
+      lerp: isTouchDevice ? 0.15 : 0.08,
     });
 
     lenis.on("scroll", ScrollTrigger.update);
