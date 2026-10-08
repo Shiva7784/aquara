@@ -122,12 +122,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Production Build
-To create an optimized production build:
+### 4. Production Build (Static Export)
+To create an optimized static HTML export build and serve it locally:
 
 ```bash
 npm run build
-npm run start
+npm run start   # Runs 'npx serve out' to preview the exported static build
 ```
 
 ---
