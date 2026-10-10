@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { CinematicVideo } from "./CinematicVideo";
+import { CinematicCanvas } from "./CinematicCanvas";
 import { ChapterProgress } from "./ChapterProgress";
 import { HeroChapter } from "@/components/chapters/HeroChapter";
 import { RevealChapter } from "@/components/chapters/RevealChapter";
@@ -13,7 +13,7 @@ import { FilmGrain } from "@/components/effects/FilmGrain";
 import { Vignette } from "@/components/effects/Vignette";
 import { WaterParticles } from "@/components/effects/WaterParticles";
 import { LightRays } from "@/components/effects/LightRays";
-import { useScrollVideo } from "@/hooks/useScrollVideo";
+import { useCanvasScroll } from "@/hooks/useCanvasScroll";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   HERO_START,
@@ -34,7 +34,7 @@ import {
 export function CinematicExperience() {
   const containerRef = useRef<HTMLElement | null>(null);
   const pinRef = useRef<HTMLDivElement | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   const [currentTime, setCurrentTime] = useState(0);
@@ -70,24 +70,25 @@ export function CinematicExperience() {
     return Math.max(0, Math.min(1, opacity));
   };
 
-  const handleTimeUpdate = useCallback((time: number, progress: number) => {
-    setCurrentTime(time);
+  const handleProgressUpdate = useCallback((progress: number, displayTime: number) => {
+    setCurrentTime(displayTime);
     setCurrentProgress(progress);
 
     // Active Chapter Identification
-    if (time < REVEAL_START) setActiveChapterId(1);
-    else if (time < MOVEMENT_START) setActiveChapterId(2);
-    else if (time < STORY_START) setActiveChapterId(3);
-    else if (time < DESCENT_START) setActiveChapterId(4);
-    else if (time < FINAL_START) setActiveChapterId(5);
+    if (displayTime < REVEAL_START) setActiveChapterId(1);
+    else if (displayTime < MOVEMENT_START) setActiveChapterId(2);
+    else if (displayTime < STORY_START) setActiveChapterId(3);
+    else if (displayTime < DESCENT_START) setActiveChapterId(4);
+    else if (displayTime < FINAL_START) setActiveChapterId(5);
     else setActiveChapterId(6);
   }, []);
 
-  useScrollVideo({
+  useCanvasScroll({
     containerRef,
     pinRef,
-    videoRef,
-    onTimeUpdate: handleTimeUpdate,
+    canvasRef,
+    totalFrames: 90,
+    onProgressUpdate: handleProgressUpdate,
   });
 
   const heroOpacity = getOpacity(currentTime, HERO_START, HERO_END, 1.2);
@@ -97,14 +98,12 @@ export function CinematicExperience() {
   const descentOpacity = getOpacity(currentTime, DESCENT_START, DESCENT_END, 1.0);
   const finalOpacity = getOpacity(currentTime, FINAL_START, FINAL_END, 0.6);
 
-  const videoSource = isMobile ? "/videos/underwater-mobile.mp4" : "/videos/underwater-desktop.mp4";
-
   return (
     <section
       ref={containerRef}
       className="relative w-full h-[600vh] bg-[#02070B] text-[#F5F7F8]"
     >
-      {/* GSAP Pinned Single Full-Screen Video & Content Viewport */}
+      {/* GSAP Pinned Single Full-Screen Canvas & Content Viewport */}
       <div ref={pinRef} className="relative w-full h-screen overflow-hidden">
         {/* Atmosphere & Lighting */}
         <LightRays />
@@ -112,9 +111,9 @@ export function CinematicExperience() {
         <FilmGrain />
         <Vignette />
 
-        {/* Single Pinned Video Element */}
+        {/* 60-120FPS Canvas Frame Engine */}
         <div className="absolute inset-0 z-0">
-          <CinematicVideo ref={videoRef} src={videoSource} progress={currentProgress} />
+          <CinematicCanvas ref={canvasRef} />
         </div>
 
         {/* Chapter Progress Sidebar (Desktop) */}

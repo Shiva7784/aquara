@@ -56,41 +56,60 @@ export function useScrollVideo({
 
     let animationFrameId: number;
     let targetProgress = 0;
-    let currentProgress = 0;
+    let isScrolling = false;
+    let stopTimer: NodeJS.Timeout | null = null;
 
-    // Pure Scroll-Bound Frame Engine: Video ONLY moves when user actively scrolls. Zero auto-playing.
+    // Instant-Pause Velocity Playback Engine (Native 60FPS Video + Instant Scroll-Stop Pause)
     const renderLoop = () => {
-      // Lerp smooth scroll interpolation
-      const diff = targetProgress - currentProgress;
-      currentProgress += diff * 0.25;
-
-      if (Math.abs(diff) < 0.0001) {
-        currentProgress = targetProgress;
-      }
-
       const maxDuration =
         videoEl.duration && !isNaN(videoEl.duration) ? videoEl.duration : TOTAL_DURATION;
       const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
-      const targetTime = VIDEO_SEEK_START + currentProgress * (endSeek - VIDEO_SEEK_START);
+      const targetTime = VIDEO_SEEK_START + targetProgress * (endSeek - VIDEO_SEEK_START);
+      const curTime = videoEl.currentTime;
+      const timeDiff = targetTime - curTime;
 
-      // Mutate video currentTime ONLY when crossing 1 full video frame boundary (~0.04s at 25fps) and decoder is ready
-      const minFrameStep = 0.04;
-      if (!videoEl.seeking && Math.abs(videoEl.currentTime - targetTime) >= minFrameStep) {
-        try {
-          const vAny = videoEl as any;
-          const seekTo = Math.max(VIDEO_SEEK_START, Math.min(targetTime, endSeek));
-          if (typeof vAny.fastSeek === "function") {
-            vAny.fastSeek(seekTo);
-          } else {
-            videoEl.currentTime = seekTo;
+      if (isScrolling) {
+        if (timeDiff > 0.1) {
+          // Scrolling Down: Hardware 60-120FPS native playback with velocity rate matching
+          if (videoEl.paused) {
+            videoEl.play().catch(() => {});
           }
-        } catch {}
+          videoEl.playbackRate = Math.min(3.0, Math.max(0.8, timeDiff * 2.0));
+        } else if (timeDiff < -0.15) {
+          // Scrolling Up: Smooth step seek
+          if (!videoEl.paused) videoEl.pause();
+          if (!videoEl.seeking) {
+            try {
+              const vAny = videoEl as any;
+              if (typeof vAny.fastSeek === "function") {
+                vAny.fastSeek(Math.max(VIDEO_SEEK_START, targetTime));
+              } else {
+                videoEl.currentTime = Math.max(VIDEO_SEEK_START, targetTime);
+              }
+            } catch {}
+          }
+        } else {
+          // At target time: normal rate
+          if (videoEl.paused && timeDiff > 0.02) {
+            videoEl.play().catch(() => {});
+          }
+          videoEl.playbackRate = 1.0;
+        }
+      } else {
+        // User stopped scrolling: Pause video IMMEDIATELY (Zero auto-scrolling)
+        if (!videoEl.paused) {
+          videoEl.pause();
+        }
       }
 
-      // Synchronize UI chapter timeline opacities in 100% lockstep with scroll progress
+      // Synchronize UI chapter timeline opacities in 100% lockstep with actual video position
       if (onTimeUpdateRef.current) {
-        const displayTime = currentProgress * TOTAL_DURATION;
-        onTimeUpdateRef.current(displayTime, currentProgress);
+        const actualProgress = Math.max(
+          0,
+          Math.min(1, (curTime - VIDEO_SEEK_START) / (endSeek - VIDEO_SEEK_START))
+        );
+        const displayTime = actualProgress * TOTAL_DURATION;
+        onTimeUpdateRef.current(displayTime, actualProgress);
       }
 
       animationFrameId = requestAnimationFrame(renderLoop);
@@ -105,6 +124,13 @@ export function useScrollVideo({
       anticipatePin: 1,
       onUpdate: (self) => {
         targetProgress = self.progress;
+        isScrolling = true;
+
+        if (stopTimer) clearTimeout(stopTimer);
+        // Instant 80ms scroll stop detection
+        stopTimer = setTimeout(() => {
+          isScrolling = false;
+        }, 80);
       },
     });
 
@@ -115,6 +141,7 @@ export function useScrollVideo({
     animationFrameId = requestAnimationFrame(renderLoop);
 
     return () => {
+      if (stopTimer) clearTimeout(stopTimer);
       clearTimeout(refreshTimer);
       cancelAnimationFrame(animationFrameId);
       trigger.kill();
