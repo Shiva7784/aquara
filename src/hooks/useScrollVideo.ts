@@ -81,8 +81,9 @@ export function useScrollVideo({
           if (!videoEl.paused) videoEl.pause();
           if (!videoEl.seeking) {
             try {
-              if ("fastSeek" in videoEl) {
-                (videoEl as any).fastSeek(Math.max(VIDEO_SEEK_START, targetTime));
+              const vAny = videoEl as any;
+              if (typeof vAny.fastSeek === "function") {
+                vAny.fastSeek(Math.max(VIDEO_SEEK_START, targetTime));
               } else {
                 videoEl.currentTime = Math.max(VIDEO_SEEK_START, targetTime);
               }
