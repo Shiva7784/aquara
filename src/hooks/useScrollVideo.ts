@@ -53,7 +53,41 @@ export function useScrollVideo({
 
     if (prefersReducedMotion) return;
 
-    // Direct synchronous scroll-to-video seeking engine for 1:1 perfect lockstep UI sync
+    let animationFrameId: number;
+    let targetProgress = 0;
+    let currentProgress = 0;
+
+    // High-Performance 60FPS RAF Engine: Decouples scroll listeners from video hardware decoders
+    const renderLoop = () => {
+      // Lerp progress smoothly toward target scroll position
+      const diff = targetProgress - currentProgress;
+      currentProgress += diff * 0.12;
+
+      if (Math.abs(diff) < 0.0001) {
+        currentProgress = targetProgress;
+      }
+
+      const maxDuration =
+        video.duration && !isNaN(video.duration) ? video.duration : TOTAL_DURATION;
+      const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
+      const targetSeekTime = VIDEO_SEEK_START + currentProgress * (endSeek - VIDEO_SEEK_START);
+
+      // Throttled video currentTime update: only update when decoder is ready and delta > 1 video frame
+      if (!video.seeking && Math.abs(video.currentTime - targetSeekTime) > 0.015) {
+        try {
+          video.currentTime = Math.max(VIDEO_SEEK_START, Math.min(targetSeekTime, endSeek));
+        } catch {}
+      }
+
+      // Synchronize UI chapter timeline opacities in 100% lockstep with currentProgress
+      if (onTimeUpdateRef.current) {
+        const displayTime = currentProgress * TOTAL_DURATION;
+        onTimeUpdateRef.current(displayTime, currentProgress);
+      }
+
+      animationFrameId = requestAnimationFrame(renderLoop);
+    };
+
     const trigger = ScrollTrigger.create({
       trigger: container,
       pin: pinTarget,
@@ -62,25 +96,7 @@ export function useScrollVideo({
       scrub: true,
       anticipatePin: 1,
       onUpdate: (self) => {
-        const maxDuration =
-          video.duration && !isNaN(video.duration) ? video.duration : TOTAL_DURATION;
-        const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
-
-        // 1:1 Map scroll progress directly to video timestamp
-        const seekTime = VIDEO_SEEK_START + self.progress * (endSeek - VIDEO_SEEK_START);
-
-        // Direct seek without artificial lerp delay to eliminate UI/Video lag disconnect
-        try {
-          if (!video.seeking) {
-            video.currentTime = Math.max(VIDEO_SEEK_START, Math.min(seekTime, endSeek));
-          }
-        } catch {}
-
-        // 1:1 Map UI chapter timeline to exact scroll progress
-        if (onTimeUpdateRef.current) {
-          const displayTime = self.progress * TOTAL_DURATION;
-          onTimeUpdateRef.current(displayTime, self.progress);
-        }
+        targetProgress = self.progress;
       },
     });
 
@@ -88,8 +104,11 @@ export function useScrollVideo({
       ScrollTrigger.refresh();
     }, 400);
 
+    animationFrameId = requestAnimationFrame(renderLoop);
+
     return () => {
       clearTimeout(refreshTimer);
+      cancelAnimationFrame(animationFrameId);
       trigger.kill();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
