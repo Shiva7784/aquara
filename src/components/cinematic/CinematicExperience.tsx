@@ -114,7 +114,7 @@ export function CinematicExperience() {
 
         {/* Single Pinned Video Element */}
         <div className="absolute inset-0 z-0">
-          <CinematicVideo ref={videoRef} src={videoSource} isMobile={isMobile} />
+          <CinematicVideo ref={videoRef} src={videoSource} />
         </div>
 
         {/* Chapter Progress Sidebar (Desktop) */}
