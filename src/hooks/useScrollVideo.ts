@@ -21,29 +21,30 @@ export function useScrollVideo({
   onTimeUpdateRef.current = onTimeUpdate;
 
   useEffect(() => {
-    const video = videoRef.current as HTMLVideoElement | null;
+    const container = containerRef.current;
+    const video = videoRef.current;
     const pinTarget = pinRef?.current || container;
 
     if (!container || !video || !pinTarget) return;
-    const videoEl: HTMLVideoElement = video;
 
-    video.muted = true;
-    video.playsInline = true;
+    const videoEl: HTMLVideoElement = video;
+    videoEl.muted = true;
+    videoEl.playsInline = true;
     // @ts-ignore
-    if (video.setAttribute) video.setAttribute("webkit-playsinline", "true");
+    if (videoEl.setAttribute) videoEl.setAttribute("webkit-playsinline", "true");
 
     const setInitialFrame = () => {
       try {
-        video.currentTime = VIDEO_SEEK_START;
+        videoEl.currentTime = VIDEO_SEEK_START;
       } catch {}
       ScrollTrigger.refresh();
     };
 
-    if (video.readyState >= 1) {
+    if (videoEl.readyState >= 1) {
       setInitialFrame();
     } else {
-      video.addEventListener("loadedmetadata", setInitialFrame, { once: true });
-      video.addEventListener("loadeddata", setInitialFrame, { once: true });
+      videoEl.addEventListener("loadedmetadata", setInitialFrame, { once: true });
+      videoEl.addEventListener("loadeddata", setInitialFrame, { once: true });
     }
 
     const prefersReducedMotion = window.matchMedia(
@@ -68,12 +69,15 @@ export function useScrollVideo({
 
       if (isScrolling) {
         if (timeDiff > 0.15) {
+          // Scrolling down: Use native videoEl.play() with dynamic playbackRate (0.5x - 3.5x)
+          // Eliminates H.264 hardware decode keyframe seeking lag completely
           if (videoEl.paused) {
             videoEl.play().catch(() => {});
           }
           const desiredRate = Math.min(3.5, Math.max(0.6, timeDiff * 1.8));
           videoEl.playbackRate = desiredRate;
         } else if (timeDiff < -0.2) {
+          // Scrolling up: Smooth backward seek
           if (!videoEl.paused) videoEl.pause();
           if (!videoEl.seeking) {
             try {
@@ -85,12 +89,14 @@ export function useScrollVideo({
             } catch {}
           }
         } else {
+          // Close to target scroll time: smooth normal speed
           if (videoEl.paused && timeDiff > 0.02) {
             videoEl.play().catch(() => {});
           }
           videoEl.playbackRate = 1.0;
         }
       } else {
+        // User stopped scrolling: pause video cleanly
         if (!videoEl.paused && Math.abs(timeDiff) < 0.3) {
           videoEl.pause();
         }
