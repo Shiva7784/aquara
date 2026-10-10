@@ -27,22 +27,11 @@ export function useScrollVideo({
 
     if (!container || !video || !pinTarget) return;
 
-    const isTouchDevice =
-      typeof window !== "undefined" &&
-      ("ontouchstart" in window || navigator.maxTouchPoints > 0);
-
     video.muted = true;
     video.playsInline = true;
     // @ts-ignore
     if (video.setAttribute) video.setAttribute("webkit-playsinline", "true");
     video.pause();
-
-    let isSeeking = false;
-    const onSeeking = () => { isSeeking = true; };
-    const onSeeked = () => { isSeeking = false; };
-
-    video.addEventListener("seeking", onSeeking);
-    video.addEventListener("seeked", onSeeked);
 
     const setInitialFrame = () => {
       try {
@@ -64,69 +53,44 @@ export function useScrollVideo({
 
     if (prefersReducedMotion) return;
 
-    let animationFrameId: number;
-    let targetTime = VIDEO_SEEK_START;
-    let currentTime = VIDEO_SEEK_START;
-    const lerpFactor = isTouchDevice ? 0.25 : 0.15;
-    const minDelta = isTouchDevice ? 0.02 : 0.005;
-
-    const updateVideoSeek = () => {
-      const maxDuration =
-        video.duration && !isNaN(video.duration) ? video.duration : TOTAL_DURATION;
-      const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
-
-      // Smooth lerp towards scroll target
-      currentTime += (targetTime - currentTime) * lerpFactor;
-      const desiredTime = Math.max(VIDEO_SEEK_START, Math.min(currentTime, endSeek));
-
-      // Guard against hardware decode cancellation: only mutate currentTime if NOT currently seeking
-      if (!isSeeking && !video.seeking && Math.abs(video.currentTime - desiredTime) > minDelta) {
-        try {
-          if ("fastSeek" in video && isTouchDevice) {
-            (video as any).fastSeek(desiredTime);
-          } else {
-            video.currentTime = desiredTime;
-          }
-        } catch {}
-      }
-
-      if (onTimeUpdateRef.current) {
-        const displayTime = ((currentTime - VIDEO_SEEK_START) / (endSeek - VIDEO_SEEK_START)) * TOTAL_DURATION;
-        const currentProgress = (currentTime - VIDEO_SEEK_START) / (endSeek - VIDEO_SEEK_START);
-        onTimeUpdateRef.current(Math.max(0, displayTime), Math.max(0, currentProgress));
-      }
-
-      animationFrameId = requestAnimationFrame(updateVideoSeek);
-    };
-
+    // Direct synchronous scroll-to-video seeking engine for 1:1 perfect lockstep UI sync
     const trigger = ScrollTrigger.create({
       trigger: container,
       pin: pinTarget,
       start: "top top",
       end: "bottom bottom",
-      scrub: isTouchDevice ? 0.1 : true,
+      scrub: true,
       anticipatePin: 1,
       onUpdate: (self) => {
         const maxDuration =
           video.duration && !isNaN(video.duration) ? video.duration : TOTAL_DURATION;
         const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
 
-        targetTime = VIDEO_SEEK_START + self.progress * (endSeek - VIDEO_SEEK_START);
+        // 1:1 Map scroll progress directly to video timestamp
+        const seekTime = VIDEO_SEEK_START + self.progress * (endSeek - VIDEO_SEEK_START);
+
+        // Direct seek without artificial lerp delay to eliminate UI/Video lag disconnect
+        try {
+          if (!video.seeking) {
+            video.currentTime = Math.max(VIDEO_SEEK_START, Math.min(seekTime, endSeek));
+          }
+        } catch {}
+
+        // 1:1 Map UI chapter timeline to exact scroll progress
+        if (onTimeUpdateRef.current) {
+          const displayTime = self.progress * TOTAL_DURATION;
+          onTimeUpdateRef.current(displayTime, self.progress);
+        }
       },
     });
 
     const refreshTimer = setTimeout(() => {
       ScrollTrigger.refresh();
-    }, 500);
-
-    animationFrameId = requestAnimationFrame(updateVideoSeek);
+    }, 400);
 
     return () => {
       clearTimeout(refreshTimer);
-      video.removeEventListener("seeking", onSeeking);
-      video.removeEventListener("seeked", onSeeked);
       trigger.kill();
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
