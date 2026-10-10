@@ -73,14 +73,16 @@ export function useScrollVideo({
       const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
       const targetTime = VIDEO_SEEK_START + currentProgress * (endSeek - VIDEO_SEEK_START);
 
-      // Mutate video currentTime ONLY when user scroll position moves and decoder is ready
-      if (!videoEl.seeking && Math.abs(videoEl.currentTime - targetTime) > 0.01) {
+      // Mutate video currentTime ONLY when crossing 1 full video frame boundary (~0.04s at 25fps) and decoder is ready
+      const minFrameStep = 0.04;
+      if (!videoEl.seeking && Math.abs(videoEl.currentTime - targetTime) >= minFrameStep) {
         try {
           const vAny = videoEl as any;
+          const seekTo = Math.max(VIDEO_SEEK_START, Math.min(targetTime, endSeek));
           if (typeof vAny.fastSeek === "function") {
-            vAny.fastSeek(Math.max(VIDEO_SEEK_START, Math.min(targetTime, endSeek)));
+            vAny.fastSeek(seekTo);
           } else {
-            videoEl.currentTime = Math.max(VIDEO_SEEK_START, Math.min(targetTime, endSeek));
+            videoEl.currentTime = seekTo;
           }
         } catch {}
       }
