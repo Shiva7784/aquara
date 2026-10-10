@@ -32,6 +32,7 @@ export function useScrollVideo({
     videoEl.playsInline = true;
     // @ts-ignore
     if (videoEl.setAttribute) videoEl.setAttribute("webkit-playsinline", "true");
+    videoEl.pause();
 
     const setInitialFrame = () => {
       try {
@@ -55,62 +56,39 @@ export function useScrollVideo({
 
     let animationFrameId: number;
     let targetProgress = 0;
-    let isScrolling = false;
-    let scrollStopTimer: NodeJS.Timeout | null = null;
+    let currentProgress = 0;
 
-    // High-Performance Velocity-Synced Video Playback Engine (60-120 FPS Zero-Stutter)
+    // Pure Scroll-Bound Frame Engine: Video ONLY moves when user actively scrolls. Zero auto-playing.
     const renderLoop = () => {
+      // Lerp smooth scroll interpolation
+      const diff = targetProgress - currentProgress;
+      currentProgress += diff * 0.25;
+
+      if (Math.abs(diff) < 0.0001) {
+        currentProgress = targetProgress;
+      }
+
       const maxDuration =
         videoEl.duration && !isNaN(videoEl.duration) ? videoEl.duration : TOTAL_DURATION;
       const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
-      const targetTime = VIDEO_SEEK_START + targetProgress * (endSeek - VIDEO_SEEK_START);
-      const currentVideoTime = videoEl.currentTime;
-      const timeDiff = targetTime - currentVideoTime;
+      const targetTime = VIDEO_SEEK_START + currentProgress * (endSeek - VIDEO_SEEK_START);
 
-      if (isScrolling) {
-        if (timeDiff > 0.15) {
-          // Scrolling down: Use native videoEl.play() with dynamic playbackRate (0.5x - 3.5x)
-          // Eliminates H.264 hardware decode keyframe seeking lag completely
-          if (videoEl.paused) {
-            videoEl.play().catch(() => {});
+      // Mutate video currentTime ONLY when user scroll position moves and decoder is ready
+      if (!videoEl.seeking && Math.abs(videoEl.currentTime - targetTime) > 0.01) {
+        try {
+          const vAny = videoEl as any;
+          if (typeof vAny.fastSeek === "function") {
+            vAny.fastSeek(Math.max(VIDEO_SEEK_START, Math.min(targetTime, endSeek)));
+          } else {
+            videoEl.currentTime = Math.max(VIDEO_SEEK_START, Math.min(targetTime, endSeek));
           }
-          const desiredRate = Math.min(3.5, Math.max(0.6, timeDiff * 1.8));
-          videoEl.playbackRate = desiredRate;
-        } else if (timeDiff < -0.2) {
-          // Scrolling up: Smooth backward seek
-          if (!videoEl.paused) videoEl.pause();
-          if (!videoEl.seeking) {
-            try {
-              const vAny = videoEl as any;
-              if (typeof vAny.fastSeek === "function") {
-                vAny.fastSeek(Math.max(VIDEO_SEEK_START, targetTime));
-              } else {
-                videoEl.currentTime = Math.max(VIDEO_SEEK_START, targetTime);
-              }
-            } catch {}
-          }
-        } else {
-          // Close to target scroll time: smooth normal speed
-          if (videoEl.paused && timeDiff > 0.02) {
-            videoEl.play().catch(() => {});
-          }
-          videoEl.playbackRate = 1.0;
-        }
-      } else {
-        // User stopped scrolling: pause video cleanly
-        if (!videoEl.paused && Math.abs(timeDiff) < 0.3) {
-          videoEl.pause();
-        }
+        } catch {}
       }
 
-      // Synchronize UI chapter timeline opacities in 100% lockstep with actual video time
+      // Synchronize UI chapter timeline opacities in 100% lockstep with scroll progress
       if (onTimeUpdateRef.current) {
-        const actualProgress = Math.max(
-          0,
-          Math.min(1, (currentVideoTime - VIDEO_SEEK_START) / (endSeek - VIDEO_SEEK_START))
-        );
-        const displayTime = actualProgress * TOTAL_DURATION;
-        onTimeUpdateRef.current(displayTime, actualProgress);
+        const displayTime = currentProgress * TOTAL_DURATION;
+        onTimeUpdateRef.current(displayTime, currentProgress);
       }
 
       animationFrameId = requestAnimationFrame(renderLoop);
@@ -125,12 +103,6 @@ export function useScrollVideo({
       anticipatePin: 1,
       onUpdate: (self) => {
         targetProgress = self.progress;
-        isScrolling = true;
-
-        if (scrollStopTimer) clearTimeout(scrollStopTimer);
-        scrollStopTimer = setTimeout(() => {
-          isScrolling = false;
-        }, 150);
       },
     });
 
@@ -141,7 +113,6 @@ export function useScrollVideo({
     animationFrameId = requestAnimationFrame(renderLoop);
 
     return () => {
-      if (scrollStopTimer) clearTimeout(scrollStopTimer);
       clearTimeout(refreshTimer);
       cancelAnimationFrame(animationFrameId);
       trigger.kill();
