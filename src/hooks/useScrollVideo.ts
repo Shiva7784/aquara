@@ -31,42 +31,18 @@ export function useScrollVideo({
       typeof window !== "undefined" &&
       ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 
-    if (isTouchDevice) {
-      // On mobile touch devices, play video natively at 60-120fps to prevent mobile GPU/decoder keyframe seeking lag
-      video.muted = true;
-      video.playsInline = true;
-      video.loop = true;
-      video.play().catch(() => {});
-
-      const trigger = ScrollTrigger.create({
-        trigger: container,
-        pin: pinTarget,
-        start: "top top",
-        end: "bottom bottom",
-        scrub: 0.2,
-        anticipatePin: 1,
-        onUpdate: (self) => {
-          if (onTimeUpdateRef.current) {
-            const displayTime = self.progress * TOTAL_DURATION;
-            onTimeUpdateRef.current(displayTime, self.progress);
-          }
-        },
-      });
-
-      const refreshTimer = setTimeout(() => {
-        ScrollTrigger.refresh();
-      }, 500);
-
-      return () => {
-        clearTimeout(refreshTimer);
-        trigger.kill();
-      };
-    }
-
-    // On Desktop devices, use frame-by-frame JS video scrubbing
     video.muted = true;
     video.playsInline = true;
+    // @ts-ignore
+    if (video.setAttribute) video.setAttribute("webkit-playsinline", "true");
     video.pause();
+
+    let isSeeking = false;
+    const onSeeking = () => { isSeeking = true; };
+    const onSeeked = () => { isSeeking = false; };
+
+    video.addEventListener("seeking", onSeeking);
+    video.addEventListener("seeked", onSeeked);
 
     const setInitialFrame = () => {
       try {
@@ -91,17 +67,26 @@ export function useScrollVideo({
     let animationFrameId: number;
     let targetTime = VIDEO_SEEK_START;
     let currentTime = VIDEO_SEEK_START;
+    const lerpFactor = isTouchDevice ? 0.25 : 0.15;
+    const minDelta = isTouchDevice ? 0.02 : 0.005;
 
     const updateVideoSeek = () => {
       const maxDuration =
         video.duration && !isNaN(video.duration) ? video.duration : TOTAL_DURATION;
       const endSeek = Math.min(VIDEO_SEEK_END, maxDuration - 0.5);
 
-      currentTime += (targetTime - currentTime) * 0.15;
+      // Smooth lerp towards scroll target
+      currentTime += (targetTime - currentTime) * lerpFactor;
+      const desiredTime = Math.max(VIDEO_SEEK_START, Math.min(currentTime, endSeek));
 
-      if (Math.abs(targetTime - currentTime) > 0.005) {
+      // Guard against hardware decode cancellation: only mutate currentTime if NOT currently seeking
+      if (!isSeeking && !video.seeking && Math.abs(video.currentTime - desiredTime) > minDelta) {
         try {
-          video.currentTime = Math.max(VIDEO_SEEK_START, Math.min(currentTime, endSeek));
+          if ("fastSeek" in video && isTouchDevice) {
+            (video as any).fastSeek(desiredTime);
+          } else {
+            video.currentTime = desiredTime;
+          }
         } catch {}
       }
 
@@ -119,7 +104,7 @@ export function useScrollVideo({
       pin: pinTarget,
       start: "top top",
       end: "bottom bottom",
-      scrub: true,
+      scrub: isTouchDevice ? 0.1 : true,
       anticipatePin: 1,
       onUpdate: (self) => {
         const maxDuration =
@@ -130,7 +115,6 @@ export function useScrollVideo({
       },
     });
 
-    // Refresh ScrollTrigger after mount to ensure correct height calculations on Vercel
     const refreshTimer = setTimeout(() => {
       ScrollTrigger.refresh();
     }, 500);
@@ -139,6 +123,8 @@ export function useScrollVideo({
 
     return () => {
       clearTimeout(refreshTimer);
+      video.removeEventListener("seeking", onSeeking);
+      video.removeEventListener("seeked", onSeeked);
       trigger.kill();
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
